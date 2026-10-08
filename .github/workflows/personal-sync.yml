@@ -41,6 +41,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh auth setup-git
+          git -C work/upstream fetch --unshallow origin dev
           git -C work/upstream push "https://github.com/$GITHUB_REPOSITORY.git" HEAD:refs/heads/upstream-sync
           if ! gh release view personal-latest >/dev/null 2>&1; then
             gh release create personal-latest --title "个人定制阅卷版" --notes "同步上游dev，保留个性化识别规则。来源与校验信息见build-info.json。"
