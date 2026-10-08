@@ -70,6 +70,58 @@ if (typeof ProviderManager !== 'undefined') {
     }
 }
 
+function removeOfficialProviderReferences() {
+    const providers = ProviderManager.data.providers;
+    const current = ProviderManager.data.activeProvider;
+    const fallback = current !== '5plus1官方' && providers[current] ? current
+        : Object.keys(providers).find(n => n !== '5plus1官方' && providers[n].apiKey)
+        || 'OpenAI个人接口';
+    if (!providers[fallback]) return;
+    const ids = Object.keys(providers[fallback].models || {});
+    const model = ids.includes('gpt-6-luna') ? 'gpt-6-luna' : ids.includes('gemini-flash-latest') ? 'gemini-flash-latest' : ids.includes('qwen3.8-flash') ? 'qwen3.8-flash' : ids[0];
+    delete providers['5plus1官方'];
+    if (current === '5plus1官方') {
+        ProviderManager.data.activeProvider = fallback;
+        ProviderManager.data.activeModel = model;
+    }
+    ProviderManager.save();
+    if (typeof WorkflowManager !== 'undefined') {
+        for (const wf of Object.values(WorkflowManager.data.workflows)) {
+            for (const entry of [wf.model, wf.dualEval?.secondary, wf.dualEval?.arbitration]) {
+                if (entry?.provider === '5plus1官方') {
+                    entry.provider = fallback; entry.model = model; entry.reasoningEffort = '';
+                }
+            }
+        }
+        WorkflowManager.save();
+    }
+    if (typeof PresetManager !== 'undefined') {
+        for (const cfg of Object.values(PresetManager.data.list)) {
+            if (['5plus1', '5plus1官方'].includes(cfg.provider)) {
+                cfg.provider = fallback; cfg.endpoint = providers[fallback].endpoint; cfg.model = model;
+            }
+        }
+        PresetManager.save();
+    }
+}
+if (typeof ProviderManager !== 'undefined' && typeof PERSONAL_OPENAI_MODEL_CATALOG !== 'undefined') {
+    const originalProviderDefaults = ProviderManager._getDefault;
+    ProviderManager._getDefault = function() {
+        const defaults = originalProviderDefaults.call(this);
+        delete defaults.providers['5plus1官方'];
+        defaults.providers['OpenAI个人接口'] = {endpoint:'https://code.ppxwo.de/v1/chat/completions',apiKey:'',models:Object.fromEntries(PERSONAL_OPENAI_MODEL_CATALOG.map(id => [id,{label:id,tags:[]}]))};
+        defaults.activeProvider = 'OpenAI个人接口'; defaults.activeModel = 'gpt-6-luna';
+        return defaults;
+    };
+    const originalProviderInit = ProviderManager.init;
+    ProviderManager.init = function() { originalProviderInit.call(this); removeOfficialProviderReferences(); };
+    if (typeof WorkflowManager !== 'undefined') {
+        const originalWorkflowInit = WorkflowManager.init;
+        WorkflowManager.init = function() { originalWorkflowInit.call(this); removeOfficialProviderReferences(); };
+    }
+    removeOfficialProviderReferences();
+}
+
 // 在所有定义加载后、阅卷主逻辑运行前追加个性化识别规则。
 // 首次启动和重置均打开个人设置，绝不调用原作者密钥验证。
 if (typeof showOnboardingDialog === 'function') {

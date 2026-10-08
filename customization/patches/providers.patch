@@ -1,0 +1,28 @@
+diff --git a/src/core/ai-engine.js b/src/core/ai-engine.js
+index 42ba226..a9df893 100644
+--- a/src/core/ai-engine.js
++++ b/src/core/ai-engine.js
+@@ -250,7 +250,7 @@ const WorkflowManager = {
+         const lastMigratedVersion = this.data._migratedVersion || '';
+ 
+         // 仅在版本升级时重置内置工作流的模型配置，避免覆盖用户手动修改
+-        const shouldMigrateDefaults = lastMigratedVersion !== currentVersion;
++        const shouldMigrateDefaults = false; // 定制版更新保留用户工作流选型
+ 
+         for (const [name, wf] of Object.entries(this.data.workflows)) {
+             if (wf.isBuiltin && defaults.workflows[name]) {
+diff --git a/src/core/ui-settings.js b/src/core/ui-settings.js
+index f8f8fa2..764de51 100644
+--- a/src/core/ui-settings.js
++++ b/src/core/ui-settings.js
+@@ -2234,10 +2234,6 @@ async function handleNewProvider() {
+ 
+ async function handleDeleteProvider() {
+     const name = document.getElementById('ai-provider').value;
+-    if (name === '5plus1官方') {
+-        showAlertModal("默认供应商「5plus1官方」不允许删除！");
+-        return;
+-    }
+     if (Object.keys(ProviderManager.data.providers).length <= 1) {
+         showAlertModal("必须至少保留一个供应商！");
+         return;

@@ -2,6 +2,21 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+test('移除官方供应商并迁移旧工作流，保留个人工作流和密钥', () => {
+    const context = {console}; vm.createContext(context);
+    vm.runInContext(fs.readFileSync('src/core/prompt.js','utf8'),context);
+    vm.runInContext(`const PERSONAL_RELEASE_URL=''; const PERSONAL_OPENAI_MODEL_CATALOG=['gpt-6-luna'];
+        const ProviderManager={data:{providers:{'5plus1官方':{models:{}},'OpenAI个人接口':{apiKey:'local-test',models:{'gpt-6-luna':{}}}},activeProvider:'5plus1官方'},save(){},init(){},_getDefault(){return {providers:{'5plus1官方':{}},activeProvider:'5plus1官方'}}};
+        const WorkflowManager={data:{workflows:{old:{model:{provider:'5plus1官方',model:'aimarker-fast'},dualEval:{secondary:{provider:'5plus1官方'}}},personal:{model:{provider:'OpenAI个人接口',model:'custom-model'}}}},save(){},init(){}};`,context);
+    vm.runInContext(fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8'),context);
+    assert.equal(vm.runInContext("'5plus1官方' in ProviderManager.data.providers",context),false);
+    assert.equal(vm.runInContext('ProviderManager.data.activeProvider',context),'OpenAI个人接口');
+    assert.equal(vm.runInContext('WorkflowManager.data.workflows.old.model.provider',context),'OpenAI个人接口');
+    assert.equal(vm.runInContext('WorkflowManager.data.workflows.old.dualEval.secondary.provider',context),'OpenAI个人接口');
+    assert.equal(vm.runInContext('WorkflowManager.data.workflows.personal.model.model',context),'custom-model');
+    assert.equal(vm.runInContext("ProviderManager.data.providers['OpenAI个人接口'].apiKey",context),'local-test');
+    assert.equal(vm.runInContext("'5plus1官方' in ProviderManager._getDefault().providers",context),false);
+});
 test('首次启动打开设置不进入原作者验证，新题目引导保留', () => {
     const context = {console};
     vm.createContext(context);
