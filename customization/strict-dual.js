@@ -12,7 +12,9 @@ function validatePersonalDualResult(result, units, maxScore) {
     }
     return result;
 }
+const originalPersonalDualEvaluation = callDualEvaluation;
 callDualEvaluation = async function(images, config, onStreamUpdate) {
+    if (config.questionType === 'subjective') return originalPersonalDualEvaluation(images, config, onStreamUpdate);
     const workflow = WorkflowManager.getWorkflow(config.workflowId);
     if (!workflow?.dualEval?.enabled) return callAIGrading(images, config, onStreamUpdate);
     const dual = workflow.dualEval;

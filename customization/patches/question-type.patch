@@ -1,0 +1,48 @@
+diff --git a/src/core/ui-settings.js b/src/core/ui-settings.js
+index f8f8fa2..1f14745 100644
+--- a/src/core/ui-settings.js
++++ b/src/core/ui-settings.js
+@@ -763,6 +763,18 @@ function createSettingsPanel(options) {
+                     </div>
+                 </div>
+ 
++                <div class="form-section">
++                    <div class="section-header"><h4>题目类型</h4></div>
++                    <div class="section-body">
++                        <label for="personal-question-type">批改类型</label>
++                        <select id="personal-question-type" style="width:100%;margin:10px 0;padding:12px;border:1px solid #d6dce6;border-radius:8px;">
++                            <option value="objective">客观题</option>
++                            <option value="subjective">主观题</option>
++                        </select>
++                        <p style="color:#667085;font-size:13px;line-height:1.6;">客观题：双评任一空有分歧就三评，禁止平均。主观题：按工作流分差阈值处理，可取平均分。</p>
++                    </div>
++                </div>
++
+                 <div class="form-section">
+                     <div class="section-header"><h4>分数设置</h4><svg class="section-arrow" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                     <div class="section-body">
+@@ -1406,6 +1418,7 @@ function setupSettingsMenuLayout(panel) {
+     moveSection('plan', '场景方案');
+     moveSection('grading', '运行模式');
+     moveSection('grading', '批改上下文');
++    moveSection('grading', '题目类型');
+     moveSection('grading', '分数设置');
+     moveSection('grading', '勤勉加分');
+     moveSection('grading', '空白答题卡检测');
+@@ -1571,6 +1584,8 @@ function fillFormFromActivePreset() {
+     // 设置面板可能未创建（如在非阅卷页面），直接返回
+     if (!document.getElementById('ai-grading-settings')) return;
+     const config = PresetManager.getCurrentConfig();
++    const questionTypeSelect = document.getElementById('personal-question-type');
++    if (questionTypeSelect) questionTypeSelect.value = config.questionType === 'subjective' ? 'subjective' : 'objective';
+     const currentUrlId = PresetManager.getTaskIdentifier();
+ 
+     // Markdown 预览渲染（兼容旧格式字符串和新格式对象）
+@@ -2622,6 +2637,7 @@ function saveAISettings() {
+         rubric: rubricData,
+         workflowId: workflowId || 'fast',
+         gradingMode,
++        questionType: document.getElementById('personal-question-type')?.value === 'subjective' ? 'subjective' : 'objective',
+         scoring: {
+             roundStep, roundMethod,
+             maxScore: scoringUnits.length > 0
