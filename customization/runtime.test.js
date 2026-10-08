@@ -23,3 +23,16 @@ test('注入保留四种原始评分内容，并将所有更新路径导向个�
     assert.equal(context.getChannelUrls().scriptUrl,'https://github.com/example/repo/releases/download/personal-latest/ai_marker.user.js');
     assert.equal(vm.runInContext('SCRIPT_CONFIG.CHANNELS.dev.scriptUrl === SCRIPT_CONFIG.CHANNELS.preview.scriptUrl',context),true);
 });
+test('模型目录合并不覆盖密钥、用户地址、标签或工作流', () => {
+    const context = {console};
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync('src/core/prompt.js', 'utf8'),context);
+    vm.runInContext(`const PERSONAL_RELEASE_URL = ''; const PERSONAL_MODEL_CATALOG = ['qwen3.8-flash','qwen-vl-plus'];
+        const ProviderManager = {data:{providers:{'千问个人接口':{apiKey:'local-test',endpoint:'user-endpoint',models:{'qwen3.8-flash':{label:'用户标签'}}}},activeProvider:'原供应商'},save(){}};`,context);
+    vm.runInContext(fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8'),context);
+    assert.equal(vm.runInContext("ProviderManager.data.providers['千问个人接口'].apiKey",context),'local-test');
+    assert.equal(vm.runInContext("ProviderManager.data.providers['千问个人接口'].endpoint",context),'user-endpoint');
+    assert.equal(vm.runInContext("ProviderManager.data.providers['千问个人接口'].models['qwen3.8-flash'].label",context),'用户标签');
+    assert.equal(vm.runInContext("ProviderManager.data.activeProvider",context),'原供应商');
+    assert.equal(vm.runInContext("!!ProviderManager.data.providers['千问个人接口'].models['qwen-vl-plus']",context),true);
+});
