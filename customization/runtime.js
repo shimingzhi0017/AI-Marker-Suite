@@ -123,16 +123,17 @@ if (typeof ProviderManager !== 'undefined' && typeof PERSONAL_OPENAI_MODEL_CATAL
 }
 
 // 在所有定义加载后、阅卷主逻辑运行前追加个性化识别规则。
-// 首次启动和重置均打开个人设置，绝不调用原作者密钥验证。
+// 所有引导入口统一进入可关闭的设置面板，可直接选择已有方案。
+// 不创建方案、不覆盖评分标准、不调用原作者密钥验证。
 if (typeof showOnboardingDialog === 'function') {
-    const originalOnboarding = showOnboardingDialog;
     showOnboardingDialog = function(forceShow, mode) {
-        if (!mode || mode === 'first-launch') {
-            GM_setValue('ai-grading-show-onboarding', false);
-            openSettingsPanel();
-            return;
+        GM_setValue('ai-grading-show-onboarding', false);
+        if (typeof renderPresetDropdown === 'function') renderPresetDropdown();
+        if (typeof fillFormFromActivePreset === 'function') fillFormFromActivePreset();
+        openSettingsPanel();
+        if (mode === 'new-question' && typeof showToast === 'function') {
+            showToast('请选择已有方案或新建方案；设置面板可以直接关闭。');
         }
-        return originalOnboarding(forceShow, mode);
     };
 }
 for (const name of ['buildStructuredPrompt', 'buildPrompt', 'buildSubQuestionPrompt', 'buildArbitrationPrompt']) {

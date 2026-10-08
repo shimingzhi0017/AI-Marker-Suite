@@ -17,11 +17,16 @@ test('移除官方供应商并迁移旧工作流，保留个人工作流和密�
     assert.equal(vm.runInContext("ProviderManager.data.providers['OpenAI个人接口'].apiKey",context),'local-test');
     assert.equal(vm.runInContext("'5plus1官方' in ProviderManager._getDefault().providers",context),false);
 });
-test('首次启动打开设置不进入原作者验证，新题目引导保留', () => {
+test('所有引导入口打开普通设置，刷新已有方案，不调用强制向导或修改方案', () => {
     const context = {console};
     vm.createContext(context);
     vm.runInContext(fs.readFileSync('src/core/prompt.js','utf8'),context);
     vm.runInContext(`const PERSONAL_RELEASE_URL=''; let opened=0; let modes=[]; let saved={};
+        let dropdowns=0; let fills=0; let notices=[];
+        const PresetManager={data:{active:'已有方案',list:{'已有方案':{rubric:'保留规则'}},bindings:{}},save(){throw Error('不能修改方案');}};
+        function renderPresetDropdown(){dropdowns++;}
+        function fillFormFromActivePreset(){fills++;}
+        function showToast(message){notices.push(message);}
         function openSettingsPanel(){opened++;}
         function showOnboardingDialog(force,mode){modes.push(mode);}
         function GM_setValue(key,value){saved[key]=value;}`,context);
@@ -31,7 +36,16 @@ test('首次启动打开设置不进入原作者验证，新题目引导保留',
     assert.equal(vm.runInContext("saved['ai-grading-show-onboarding']",context),false);
     assert.equal(vm.runInContext('modes.length',context),0);
     context.showOnboardingDialog(true,'new-question');
-    assert.equal(vm.runInContext('modes[0]',context),'new-question');
+    context.showOnboardingDialog(true);
+    context.showOnboardingDialog(false,'future-mode');
+    assert.equal(vm.runInContext('opened',context),4);
+    assert.equal(vm.runInContext('dropdowns',context),4);
+    assert.equal(vm.runInContext('fills',context),4);
+    assert.equal(vm.runInContext('modes.length',context),0);
+    assert.equal(vm.runInContext('notices.length',context),1);
+    assert.equal(vm.runInContext('PresetManager.data.active',context),'已有方案');
+    assert.equal(vm.runInContext("PresetManager.data.list['已有方案'].rubric",context),'保留规则');
+    assert.equal(vm.runInContext('Object.keys(saved).length',context),1);
 });
 test('注入保留四种原始评分内容，并将所有更新路径导向个人发布', () => {
     const context = {console};
