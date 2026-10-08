@@ -71,6 +71,18 @@ if (typeof ProviderManager !== 'undefined') {
 }
 
 // 在所有定义加载后、阅卷主逻辑运行前追加个性化识别规则。
+// 首次启动和重置均打开个人设置，绝不调用原作者密钥验证。
+if (typeof showOnboardingDialog === 'function') {
+    const originalOnboarding = showOnboardingDialog;
+    showOnboardingDialog = function(forceShow, mode) {
+        if (!mode || mode === 'first-launch') {
+            GM_setValue('ai-grading-show-onboarding', false);
+            openSettingsPanel();
+            return;
+        }
+        return originalOnboarding(forceShow, mode);
+    };
+}
 for (const name of ['buildStructuredPrompt', 'buildPrompt', 'buildSubQuestionPrompt', 'buildArbitrationPrompt']) {
     const original = eval(name);
     const wrapped = function(...args) { return original(...args) + buildFinalAnswerRecognitionRules(); };

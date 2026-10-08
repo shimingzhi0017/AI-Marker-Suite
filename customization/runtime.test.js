@@ -2,6 +2,22 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+test('首次启动打开设置不进入原作者验证，新题目引导保留', () => {
+    const context = {console};
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync('src/core/prompt.js','utf8'),context);
+    vm.runInContext(`const PERSONAL_RELEASE_URL=''; let opened=0; let modes=[]; let saved={};
+        function openSettingsPanel(){opened++;}
+        function showOnboardingDialog(force,mode){modes.push(mode);}
+        function GM_setValue(key,value){saved[key]=value;}`,context);
+    vm.runInContext(fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8'),context);
+    context.showOnboardingDialog(true,'first-launch');
+    assert.equal(vm.runInContext('opened',context),1);
+    assert.equal(vm.runInContext("saved['ai-grading-show-onboarding']",context),false);
+    assert.equal(vm.runInContext('modes.length',context),0);
+    context.showOnboardingDialog(true,'new-question');
+    assert.equal(vm.runInContext('modes[0]',context),'new-question');
+});
 test('注入保留四种原始评分内容，并将所有更新路径导向个人发布', () => {
     const context = {console};
     vm.createContext(context);

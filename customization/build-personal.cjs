@@ -12,10 +12,13 @@ const run = (cmd, args) => cp.execFileSync(cmd, args, {cwd: upstream, stdio: 'in
 // 严格检查补丁上下文：上游改变时停止构建，绝不悄悄漏掉修复。
 run('git', ['apply', '--check', path.join(__dirname, 'patches/transport.patch')]);
 run('git', ['apply', path.join(__dirname, 'patches/transport.patch')]);
+run('git', ['apply', '--check', path.join(__dirname, 'patches/onboarding.patch')]);
+run('git', ['apply', path.join(__dirname, 'patches/onboarding.patch')]);
 const buildPath = path.join(upstream, 'build.js');
 let build = fs.readFileSync(buildPath, 'utf8');
 const anchor = 'modulesContent += content;';
 if (build.split(anchor).length !== 2 || !build.includes("'main.js'")) throw Error('上游构建注入位置改变，停止发布');
+if (!fs.readFileSync(path.join(upstream, 'src/core/ui-settings.js'), 'utf8').includes('function showOnboardingDialog(')) throw Error('上游引导入口改变，停止发布');
 for (const name of ['buildStructuredPrompt', 'buildPrompt', 'buildSubQuestionPrompt', 'buildArbitrationPrompt']) {
     if (!fs.readFileSync(path.join(upstream, 'src/core/prompt.js'), 'utf8').includes(`function ${name}(`)) throw Error(`上游缺少${name}`);
 }

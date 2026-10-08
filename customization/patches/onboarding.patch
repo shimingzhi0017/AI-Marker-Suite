@@ -1,0 +1,21 @@
+diff --git a/src/core/main.js b/src/core/main.js
+index 7e4c24d..f779dd5 100644
+--- a/src/core/main.js
++++ b/src/core/main.js
+@@ -626,15 +626,7 @@ setInterval(async () => {
+                 showToast(`📝 未找到当前题目的专属方案，已恢复为【默认配置】`);
+             }
+ 
+-            // 检查 API KEY 是否配置
+-            const apiKey = ProviderManager.getProvider('5plus1官方')?.apiKey || '';
+-            console.log('🔍 [OOBE调试] apiKey存在:', !!apiKey);
+-            if (!apiKey) {
+-                console.log('🔍 [OOBE调试] 无API Key，弹出首次启动OOBE');
+-                showOnboardingDialog(true, 'first-launch');
+-                return;
+-            }
+-
++            // 个人接口不依赖原作者密钥；实际调用使用工作流供应商配置。
+             // 检查是否是新试题（未绑定配置）
+             console.log('🔍 [OOBE调试] 检查新试题条件: boundPreset=', boundPreset, ', 存在配置=', !!PresetManager.data.list[boundPreset]);
+             if (!boundPreset || !PresetManager.data.list[boundPreset]) {
