@@ -2,6 +2,49 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+test('工作流模型列表显示真实ID，保留有效模型，缺失模型提示选择', () => {
+    const context = {document:{createElement(){return {};}}};
+    vm.createContext(context);
+    vm.runInContext(`const ProviderManager={data:{providers:{A:{models:{one:{label:'自定义标签'},two:{label:'two'}}},B:{models:{other:{}}},empty:{models:{}}}}};`,context);
+    const source=fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8');
+    vm.runInContext(source.slice(0,source.indexOf('function buildFinalAnswerRecognitionRules')),context);
+    const select={options:[],value:'',replaceChildren(){this.options=[];},appendChild(o){this.options.push(o);},prepend(o){this.options.unshift(o);}};
+    context.populatePersonalWorkflowModels(select,'A','two');
+    assert.equal(select.value,'two');
+    assert.equal(select.options[0].textContent,'自定义标签 (one)');
+    context.populatePersonalWorkflowModels(select,'B');
+    assert.equal(select.value,'other');
+    context.populatePersonalWorkflowModels(select,'B','旧模型');
+    assert.equal(select.value,'');
+    assert.match(select.options[0].textContent,/原模型不在当前列表/);
+    assert.equal(select.options[0].disabled,true);
+    context.populatePersonalWorkflowModels(select,'empty');
+    assert.match(select.options[0].textContent,/没有模型/);
+});
+test('首次启用双评已加载两组模型，切换供应商后恢复各自选择', () => {
+    const controls={};
+    const control=()=>({options:[],value:'',style:{},parentElement:{style:{}},replaceChildren(){this.options=[];},appendChild(o){this.options.push(o);},prepend(o){this.options.unshift(o);}});
+    const modal={set innerHTML(html){for(const match of html.matchAll(/id="([^"]+)"/g)) controls[match[1]]=control();},querySelector(selector){return controls[selector.slice(1)] || null;}};
+    const context={document:{createElement(tag){return tag==='div'?modal:{};},getElementById(){throw Error('必须在当前弹窗内查找');}},ensureModalStyles(){},getUIRoot(){return {appendChild(){}};}};
+    vm.createContext(context);
+    vm.runInContext(`const ProviderManager={data:{providers:{A:{models:{one:{},two:{}}},B:{models:{other:{}}}}}};`,context);
+    const runtime=fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8');
+    vm.runInContext(runtime.slice(0,runtime.indexOf('function buildFinalAnswerRecognitionRules')),context);
+    const source=fs.readFileSync('src/core/ui-settings.js','utf8');
+    const start=source.indexOf('function showWorkflowEditModal(wf) {');
+    vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),context);
+    context.showWorkflowEditModal({name:'test',model:{provider:'A',model:'two'},dualEval:null});
+    for(const prefix of ['sec','arb']){
+        const provider=controls['wf-edit-'+prefix+'-provider'];
+        const model=controls['wf-edit-'+prefix+'-model'];
+        assert.equal(model.value,'one');
+        model.value='two';
+        provider.value='B'; provider.onchange();
+        assert.equal(model.value,'other');
+        provider.value='A'; provider.onchange();
+        assert.equal(model.value,'two');
+    }
+});
 test('移除官方供应商并迁移旧工作流，保留个人工作流和密钥', () => {
     const context = {console}; vm.createContext(context);
     vm.runInContext(fs.readFileSync('src/core/prompt.js','utf8'),context);

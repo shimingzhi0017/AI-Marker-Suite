@@ -1,3 +1,34 @@
+function populatePersonalWorkflowModels(select, providerName, preferredModel) {
+    const models = ProviderManager.data.providers[providerName]?.models || {};
+    const ids = Object.keys(models);
+    select.replaceChildren();
+    // 使用真实模型ID作值，并显示ID，避免自定义标签掩盖实际请求模型。
+    for (const id of ids) {
+        const option = document.createElement('option');
+        option.value = id;
+        const label = models[id]?.label;
+        option.textContent = label && label !== id ? label + ' (' + id + ')' : id;
+        select.appendChild(option);
+    }
+    if (preferredModel && !ids.includes(preferredModel)) {
+        const missing = document.createElement('option');
+        missing.value = '';
+        missing.textContent = '原模型不在当前列表：' + preferredModel + '，请重新选择';
+        missing.disabled = true;
+        select.prepend(missing);
+        select.value = '';
+    } else if (!ids.length) {
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '该供应商没有模型，请先刷新或添加模型';
+        empty.disabled = true;
+        select.appendChild(empty);
+        select.value = '';
+    } else {
+        select.value = preferredModel || ids[0];
+    }
+}
+
 function buildFinalAnswerRecognitionRules() {
     return `
 
