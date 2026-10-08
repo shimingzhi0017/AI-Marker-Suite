@@ -21,7 +21,9 @@ for (const name of ['buildStructuredPrompt', 'buildPrompt', 'buildSubQuestionPro
 }
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'model-catalog.json'), 'utf8'));
 if (!Array.isArray(catalog) || catalog.some(id => typeof id !== 'string')) throw Error('模型列表格式无效');
-const injected = `const PERSONAL_RELEASE_URL = ${JSON.stringify(releaseURL)};\nconst PERSONAL_MODEL_CATALOG = ${JSON.stringify(catalog)};\n` + fs.readFileSync(path.join(__dirname, 'runtime.js'), 'utf8');
+const openaiCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'openai-model-catalog.json'), 'utf8'));
+if (!Array.isArray(openaiCatalog) || openaiCatalog.some(id => typeof id !== 'string')) throw Error('OpenAI模型列表格式无效');
+const injected = `const PERSONAL_RELEASE_URL = ${JSON.stringify(releaseURL)};\nconst PERSONAL_MODEL_CATALOG = ${JSON.stringify(catalog)};\nconst PERSONAL_OPENAI_MODEL_CATALOG = ${JSON.stringify(openaiCatalog)};\n` + fs.readFileSync(path.join(__dirname, 'runtime.js'), 'utf8');
 build = build.replace(anchor, `if (mod === 'main.js') modulesContent += ${JSON.stringify(injected)};\n                ${anchor}`);
 fs.writeFileSync(buildPath, build);
 fs.mkdirSync(path.join(upstream, 'tests'), {recursive: true});

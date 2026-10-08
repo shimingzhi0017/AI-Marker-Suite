@@ -27,7 +27,7 @@ test('模型目录合并不覆盖密钥、用户地址、标签或工作流', ()
     const context = {console};
     vm.createContext(context);
     vm.runInContext(fs.readFileSync('src/core/prompt.js', 'utf8'),context);
-    vm.runInContext(`const PERSONAL_RELEASE_URL = ''; const PERSONAL_MODEL_CATALOG = ['qwen3.8-flash','qwen-vl-plus'];
+    vm.runInContext(`const PERSONAL_RELEASE_URL = ''; const PERSONAL_MODEL_CATALOG = ['qwen3.8-flash','qwen-vl-plus']; const PERSONAL_OPENAI_MODEL_CATALOG = ['gpt-6-luna'];
         const ProviderManager = {data:{providers:{'千问个人接口':{apiKey:'local-test',endpoint:'user-endpoint',models:{'qwen3.8-flash':{label:'用户标签'}}}},activeProvider:'原供应商'},save(){}};`,context);
     vm.runInContext(fs.readFileSync(process.env.PERSONAL_RUNTIME_PATH,'utf8'),context);
     assert.equal(vm.runInContext("ProviderManager.data.providers['千问个人接口'].apiKey",context),'local-test');
@@ -35,4 +35,7 @@ test('模型目录合并不覆盖密钥、用户地址、标签或工作流', ()
     assert.equal(vm.runInContext("ProviderManager.data.providers['千问个人接口'].models['qwen3.8-flash'].label",context),'用户标签');
     assert.equal(vm.runInContext("ProviderManager.data.activeProvider",context),'原供应商');
     assert.equal(vm.runInContext("!!ProviderManager.data.providers['千问个人接口'].models['qwen-vl-plus']",context),true);
+    assert.equal(vm.runInContext("ProviderManager.data.providers['OpenAI个人接口'].endpoint",context),'https://code.ppxwo.de/v1/chat/completions');
+    assert.equal(vm.runInContext("ProviderManager.data.providers['OpenAI个人接口'].apiKey",context),'');
+    assert.equal(vm.runInContext("!!ProviderManager.data.providers['OpenAI个人接口'].models['gpt-6-luna']",context),true);
 });

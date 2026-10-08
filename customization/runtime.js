@@ -11,13 +11,12 @@ function buildFinalAnswerRecognitionRules() {
 6. 识别规则不放宽内容评分：最终答案仍严格遵循该题的标准答案、有效数字和给分规则。`;
 }
 
-function installPersonalModelProvider(ids) {
-    const name = '千问个人接口';
+function installPersonalModelProvider(ids, name = '千问个人接口', endpoint = 'https://maas.qianwenaiapi.com/compatible-mode/v1/chat/completions') {
     const providers = ProviderManager.data.providers;
     let provider = providers[name];
     if (!provider) {
         provider = providers[name] = {
-            endpoint: 'https://maas.qianwenaiapi.com/compatible-mode/v1/chat/completions',
+            endpoint,
             apiKey: '', models: {}
         };
     }
@@ -29,33 +28,40 @@ function installPersonalModelProvider(ids) {
     ProviderManager.save();
     return provider;
 }
-if (typeof PERSONAL_MODEL_CATALOG !== 'undefined' && typeof ProviderManager !== 'undefined') {
-    installPersonalModelProvider(PERSONAL_MODEL_CATALOG);
-    if (typeof GM_registerMenuCommand === 'function') {
-        GM_registerMenuCommand('刷新千问个人接口模型列表', () => {
-            const provider = ProviderManager.getProvider('千问个人接口');
-            if (!provider.apiKey) { alert('请先在供应商设置中填写千问个人接口的API密钥。'); return; }
-            GM_xmlhttpRequest({
-                method: 'GET', url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/models',
-                headers: {Authorization: 'Bearer ' + provider.apiKey}, timeout: 30000,
-                onload(res) {
-                    try {
-                        if (res.status !== 200) throw Error('HTTP ' + res.status);
-                        const body = JSON.parse(res.responseText);
-                        if (!Array.isArray(body.data)) throw Error('模型列表格式无效');
-                        const ids = [...new Set(body.data.map(m => m?.id).filter(id => typeof id === 'string'))];
-                        if (!ids.length) throw Error('没有可用模型');
-                        installPersonalModelProvider(ids);
-                        alert('已获取' + ids.length + '个模型。重新打开设置即可查看；列表不代表视觉能力已验证。');
-                    } catch (e) { alert('获取模型列表失败：' + e.message); }
-                },
-                onerror() { alert('获取模型列表失败：网络错误'); },
-                ontimeout() { alert('获取模型列表超时'); }
-            });
+function registerPersonalModelRefresh(name, baseUrl) {
+    if (typeof GM_registerMenuCommand !== 'function') return;
+    GM_registerMenuCommand('刷新' + name + '模型列表', () => {
+        const provider = ProviderManager.getProvider(name);
+        if (!provider.apiKey) { alert('请先在供应商设置中填写' + name + '的API密钥。'); return; }
+        GM_xmlhttpRequest({
+            method: 'GET', url: baseUrl + '/models',
+            headers: {Authorization: 'Bearer ' + provider.apiKey}, timeout: 30000,
+            onload(res) {
+                try {
+                    if (res.status !== 200) throw Error('HTTP ' + res.status);
+                    const body = JSON.parse(res.responseText);
+                    if (!Array.isArray(body.data)) throw Error('模型列表格式无效');
+                    const ids = [...new Set(body.data.map(m => m?.id).filter(id => typeof id === 'string'))];
+                    if (!ids.length) throw Error('没有可用模型');
+                    installPersonalModelProvider(ids, name, baseUrl + '/chat/completions');
+                    alert('已获取' + ids.length + '个模型。重新打开设置即可查看；列表不代表视觉能力已验证。');
+                } catch (e) { alert('获取模型列表失败：' + e.message); }
+            },
+            onerror() { alert('获取模型列表失败：网络错误'); },
+            ontimeout() { alert('获取模型列表超时'); }
         });
+    });
+}
+if (typeof ProviderManager !== 'undefined') {
+    if (typeof PERSONAL_MODEL_CATALOG !== 'undefined') {
+        installPersonalModelProvider(PERSONAL_MODEL_CATALOG);
+        registerPersonalModelRefresh('千问个人接口', 'https://maas.qianwenaiapi.com/compatible-mode/v1');
+    }
+    if (typeof PERSONAL_OPENAI_MODEL_CATALOG !== 'undefined') {
+        installPersonalModelProvider(PERSONAL_OPENAI_MODEL_CATALOG, 'OpenAI个人接口', 'https://code.ppxwo.de/v1/chat/completions');
+        registerPersonalModelRefresh('OpenAI个人接口', 'https://code.ppxwo.de/v1');
     }
 }
-
 
 // 在所有定义加载后、阅卷主逻辑运行前追加个性化识别规则。
 for (const name of ['buildStructuredPrompt', 'buildPrompt', 'buildSubQuestionPrompt', 'buildArbitrationPrompt']) {
