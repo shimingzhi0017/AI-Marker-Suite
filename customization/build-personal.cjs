@@ -31,11 +31,13 @@ if (!Array.isArray(openaiCatalog) || openaiCatalog.some(id => typeof id !== 'str
 const geminiCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'gemini-model-catalog.json'), 'utf8'));
 if (!Array.isArray(geminiCatalog) || geminiCatalog.some(id => typeof id !== 'string')) throw Error('Gemini模型列表格式无效');
 const injected = `const PERSONAL_RELEASE_URL = ${JSON.stringify(releaseURL)};\nconst PERSONAL_MODEL_CATALOG = ${JSON.stringify(catalog)};\nconst PERSONAL_OPENAI_MODEL_CATALOG = ${JSON.stringify(openaiCatalog)};\nconst PERSONAL_GEMINI_MODEL_CATALOG = ${JSON.stringify(geminiCatalog)};\n` + fs.readFileSync(path.join(__dirname, 'runtime.js'), 'utf8');
-build = build.replace(anchor, `if (mod === 'main.js') modulesContent += ${JSON.stringify(injected)};\n                ${anchor}`);
+const strictDual = fs.readFileSync(path.join(__dirname, 'strict-dual.js'), 'utf8');
+build = build.replace(anchor, `if (mod === 'main.js') modulesContent += ${JSON.stringify(injected + '\n' + strictDual)};\n                ${anchor}`);
 fs.writeFileSync(buildPath, build);
 fs.mkdirSync(path.join(upstream, 'tests'), {recursive: true});
-for (const name of ['ai-response.test.js', 'score-parsing.test.js', 'runtime.test.js']) fs.copyFileSync(path.join(__dirname, name), path.join(upstream, 'tests', name));
+for (const name of ['ai-response.test.js', 'score-parsing.test.js', 'runtime.test.js', 'strict-dual.test.js']) fs.copyFileSync(path.join(__dirname, name), path.join(upstream, 'tests', name));
 process.env.PERSONAL_RUNTIME_PATH = path.join(__dirname, 'runtime.js');
+process.env.PERSONAL_DUAL_PATH = path.join(__dirname, 'strict-dual.js');
 const tests = fs.readdirSync(path.join(upstream, 'tests')).filter(n => n.endsWith('.test.js')).map(n => 'tests/' + n);
 run(process.execPath, ['--test', ...tests]);
 const buildNumber = process.env.GITHUB_RUN_NUMBER || '1';
