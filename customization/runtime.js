@@ -28,22 +28,25 @@ function installPersonalModelProvider(ids, name = '千问个人接口', endpoint
     ProviderManager.save();
     return provider;
 }
-function registerPersonalModelRefresh(name, baseUrl) {
+function registerPersonalModelRefresh(name, baseUrl, nativeGemini = false) {
     if (typeof GM_registerMenuCommand !== 'function') return;
     GM_registerMenuCommand('刷新' + name + '模型列表', () => {
         const provider = ProviderManager.getProvider(name);
         if (!provider.apiKey) { alert('请先在供应商设置中填写' + name + '的API密钥。'); return; }
         GM_xmlhttpRequest({
             method: 'GET', url: baseUrl + '/models',
-            headers: {Authorization: 'Bearer ' + provider.apiKey}, timeout: 30000,
+            headers: nativeGemini ? {'X-goog-api-key': provider.apiKey} : {Authorization: 'Bearer ' + provider.apiKey}, timeout: 30000,
             onload(res) {
                 try {
                     if (res.status !== 200) throw Error('HTTP ' + res.status);
                     const body = JSON.parse(res.responseText);
-                    if (!Array.isArray(body.data)) throw Error('模型列表格式无效');
-                    const ids = [...new Set(body.data.map(m => m?.id).filter(id => typeof id === 'string'))];
+                    const entries = nativeGemini ? body.models : body.data;
+                    if (!Array.isArray(entries)) throw Error('模型列表格式无效');
+                    const ids = [...new Set(nativeGemini
+                        ? entries.filter(m => m.supportedGenerationMethods?.includes('generateContent')).map(m => m.name?.replace(/^models\//, '')).filter(id => typeof id === 'string')
+                        : entries.map(m => m?.id).filter(id => typeof id === 'string'))];
                     if (!ids.length) throw Error('没有可用模型');
-                    installPersonalModelProvider(ids, name, baseUrl + '/chat/completions');
+                    installPersonalModelProvider(ids, name, baseUrl + (nativeGemini ? '/openai/chat/completions' : '/chat/completions'));
                     alert('已获取' + ids.length + '个模型。重新打开设置即可查看；列表不代表视觉能力已验证。');
                 } catch (e) { alert('获取模型列表失败：' + e.message); }
             },
@@ -60,6 +63,10 @@ if (typeof ProviderManager !== 'undefined') {
     if (typeof PERSONAL_OPENAI_MODEL_CATALOG !== 'undefined') {
         installPersonalModelProvider(PERSONAL_OPENAI_MODEL_CATALOG, 'OpenAI个人接口', 'https://code.ppxwo.de/v1/chat/completions');
         registerPersonalModelRefresh('OpenAI个人接口', 'https://code.ppxwo.de/v1');
+    }
+    if (typeof PERSONAL_GEMINI_MODEL_CATALOG !== 'undefined') {
+        installPersonalModelProvider(PERSONAL_GEMINI_MODEL_CATALOG, 'Gemini官方接口', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+        registerPersonalModelRefresh('Gemini官方接口', 'https://generativelanguage.googleapis.com/v1beta', true);
     }
 }
 
