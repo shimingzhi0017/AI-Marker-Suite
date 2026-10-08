@@ -16,8 +16,8 @@ run('git', ['apply', '--check', path.join(__dirname, 'patches/onboarding.patch')
 run('git', ['apply', path.join(__dirname, 'patches/onboarding.patch')]);
 run('git', ['apply', '--check', path.join(__dirname, 'patches/providers.patch')]);
 run('git', ['apply', path.join(__dirname, 'patches/providers.patch')]);
-run('git', ['apply', '--check', path.join(__dirname, 'patches/question-type.patch')]);
-run('git', ['apply', path.join(__dirname, 'patches/question-type.patch')]);
+run('git', ['apply', '--check', path.join(__dirname, 'patches/workflow-question-type.patch')]);
+run('git', ['apply', path.join(__dirname, 'patches/workflow-question-type.patch')]);
 const buildPath = path.join(upstream, 'build.js');
 let build = fs.readFileSync(buildPath, 'utf8');
 const anchor = 'modulesContent += content;';

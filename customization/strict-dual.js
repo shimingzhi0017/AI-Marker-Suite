@@ -14,9 +14,9 @@ function validatePersonalDualResult(result, units, maxScore) {
 }
 const originalPersonalDualEvaluation = callDualEvaluation;
 callDualEvaluation = async function(images, config, onStreamUpdate) {
-    if (config.questionType === 'subjective') return originalPersonalDualEvaluation(images, config, onStreamUpdate);
     const workflow = WorkflowManager.getWorkflow(config.workflowId);
     if (!workflow?.dualEval?.enabled) return callAIGrading(images, config, onStreamUpdate);
+    if (workflow.dualEval.questionType === 'subjective') return originalPersonalDualEvaluation(images, config, onStreamUpdate);
     const dual = workflow.dualEval;
     const units = config.scoring?.units || config.subQuestions || [];
     const maxScore = units.length ? units.reduce((sum, u) => sum + u.maxScore, 0) : config.maxScore || PresetManager.getMaxScore();
