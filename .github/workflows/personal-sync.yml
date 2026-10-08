@@ -1,0 +1,48 @@
+name: Sync upstream and build personal edition
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'customization/**'
+      - '.github/workflows/personal-sync.yml'
+permissions:
+  contents: write
+concurrency:
+  group: personal-release
+  cancel-in-progress: false
+jobs:
+  sync-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Fetch upstream default development branch
+        run: git clone --depth 1 --branch dev https://github.com/five-plus-one/AI-Marker-Suite.git work/upstream
+      - name: Install upstream dependencies
+        working-directory: work/upstream
+        run: npm ci --ignore-scripts
+      - name: Apply fixes, inject personal rules, test and build
+        run: node customization/build-personal.cjs work/upstream
+      - name: Save successful upstream source snapshot
+        run: |
+          git -C work/upstream archive HEAD -o "$GITHUB_WORKSPACE/dist/upstream-source.tar"
+          tar -czf dist/personal-source.tar.gz customization .github/workflows/personal-sync.yml LICENSE README.md
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-edition
+          path: dist/
+      - name: Publish only after all checks succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh auth setup-git
+          git -C work/upstream push "https://github.com/$GITHUB_REPOSITORY.git" HEAD:refs/heads/upstream-sync
+          if ! gh release view personal-latest >/dev/null 2>&1; then
+            gh release create personal-latest --title "个人定制阅卷版" --notes "同步上游dev，保留个性化识别规则。来源与校验信息见build-info.json。"
+          fi
+          gh release upload personal-latest dist/* --clobber

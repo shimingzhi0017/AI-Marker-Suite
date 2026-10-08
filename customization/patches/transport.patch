@@ -1,0 +1,118 @@
+diff --git a/src/core/ai-engine.js b/src/core/ai-engine.js
+index 42ba226..be041ab 100644
+--- a/src/core/ai-engine.js
++++ b/src/core/ai-engine.js
+@@ -382,6 +382,20 @@ const WorkflowManager = {
+ WorkflowManager.init();
+ 
+ // ========== 通用 AI 请求函数 ==========
++function normalizeChatEndpoint(endpoint) {
++    const url = new URL(endpoint);
++    if (url.pathname === '/' || url.pathname === '') url.pathname = '/v1/chat/completions';
++    else if (/\/v1\/?$/.test(url.pathname)) url.pathname = url.pathname.replace(/\/$/, '') + '/chat/completions';
++    return url.toString();
++}
++
++function extractAIText(content) {
++    if (typeof content === 'string') return content;
++    if (!Array.isArray(content)) return '';
++    return content.filter(part => part && ['text', 'output_text'].includes(part.type))
++        .map(part => typeof part.text === 'string' ? part.text : part.text?.value || '').join('');
++}
++
+ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages, maxTokens) {
+     return new Promise((resolve, reject) => {
+         const messageContent = [{ type: "text", text: prompt }];
+@@ -403,7 +417,8 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+             requestBody.reasoning_effort = config.reasoningEffort;
+         }
+ 
+-        console.log(`📤 发送请求到: ${config.endpoint} (模型: ${config.model}${config.reasoningEffort ? ', 思考深度: ' + config.reasoningEffort : ''})`);
++        const endpoint = normalizeChatEndpoint(config.endpoint);
++        console.log(`📤 发送请求到: ${endpoint} (模型: ${config.model}${config.reasoningEffort ? ', 思考深度: ' + config.reasoningEffort : ''})`);
+ 
+         let fullText = '';
+         let buffer = '';
+@@ -434,7 +449,18 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+                     if (choice?.finish_reason) finishReason = choice.finish_reason;
+                     if (parsed.usage) usage = parsed.usage;
+                     reasoningChars += (choice?.delta?.reasoning_content || '').length;
+-                    const delta = choice?.delta?.content || '';
++                    const delta = extractAIText(choice?.delta?.content) ||
++                        (parsed.type === 'response.output_text.delta' && typeof parsed.delta === 'string' ? parsed.delta : '');
++                    if (parsed.type === 'response.completed') {
++                        streamDone = true;
++                        finishReason = 'stop';
++                    }
++                    if (parsed.type === 'response.incomplete') {
++                        streamError = '接口响应未完成 (' + (parsed.response?.incomplete_details?.reason || 'unknown') + ')';
++                    }
++                    if (parsed.type === 'response.failed') {
++                        streamError = parsed.response?.error?.message || '接口响应失败';
++                    }
+                     if (delta) {
+                         fullText += delta;
+                         if (onStreamUpdate) onStreamUpdate(fullText);
+@@ -445,7 +471,7 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+ 
+         const request = GM_xmlhttpRequest({
+             method: 'POST',
+-            url: config.endpoint,
++            url: endpoint,
+             headers: {
+                 'Content-Type': 'application/json',
+                 'Authorization': `Bearer ${config.apiKey}`
+@@ -498,7 +524,10 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+                 streamDone = false;
+                 sawSSE = false;
+                 reasoningChars = 0;
+-                parseSSEBuffer(responseText);
++                streamError = null;
++                usage = null;
++                // onload是完整响应，末行没有换行符也必须解析。
++                parseSSEBuffer(responseText + '\n');
+ 
+                 if (!fullText && responseText) {
+                     console.log('📝 [诊断] SSE解析无结果，尝试解析为普通JSON响应...');
+@@ -509,14 +538,23 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+                         if (jsonObj.choices && jsonObj.choices[0]) {
+                             finishReason = jsonObj.choices[0].finish_reason || finishReason;
+                             if (jsonObj.choices[0].message && jsonObj.choices[0].message.content) {
+-                                fullText = jsonObj.choices[0].message.content;
++                                fullText = extractAIText(jsonObj.choices[0].message.content);
+                             } else if (jsonObj.choices[0].delta && jsonObj.choices[0].delta.content) {
+-                                fullText = jsonObj.choices[0].delta.content;
++                                fullText = extractAIText(jsonObj.choices[0].delta.content);
+                             }
+                         }
+                         if (!fullText && jsonObj.content) {
+-                            fullText = jsonObj.content;
++                            fullText = extractAIText(jsonObj.content);
++                        }
++                        if (!fullText && Array.isArray(jsonObj.output)) {
++                            fullText = jsonObj.output.filter(item => item.type === 'message' && item.role === 'assistant')
++                                .map(item => extractAIText(item.content)).join('');
++                        }
++                        if (!fullText && typeof jsonObj.output_text === 'string') fullText = jsonObj.output_text;
++                        if (jsonObj.status && jsonObj.status !== 'completed' && (Array.isArray(jsonObj.output) || typeof jsonObj.output_text === 'string')) {
++                            streamError = '接口响应未完成 (' + jsonObj.status + '): ' + (jsonObj.incomplete_details?.reason || jsonObj.error?.message || 'unknown');
+                         }
++                        if (!fullText && !streamError) streamError = 'JSON响应没有可用正文；顶层字段：' + Object.keys(jsonObj).join(', ');
+                     } catch (e) {}
+                 }
+ 
+@@ -535,7 +573,13 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+                 }
+                 if (finishReason && finishReason !== 'stop') return reject(new Error(`AI响应未正常完成 (${finishReason})`));
+                 if (sawSSE && !finishReason && !streamDone) return reject(new Error('AI响应未完整结束，请检查网络后继续批改'));
+-                if (!fullText.trim()) return reject(new Error('AI未返回可用内容，请检查模型输出设置'));
++                if (!fullText.trim()) {
++                    const error = new Error(/^\s*</.test(responseText)
++                        ? '接口返回了HTML网页而非AI结果；请检查服务网关的完整请求路径（通常为/v1/chat/completions）'
++                        : 'AI未返回可用内容；请检查完整接口地址、模型和响应格式');
++                    error.code = 'INVALID_AI_RESPONSE';
++                    return reject(error);
++                }
+                 resolve(fullText);
+             },
+             onerror: function() {
