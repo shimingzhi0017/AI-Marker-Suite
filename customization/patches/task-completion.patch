@@ -1,0 +1,49 @@
+diff --git a/src/core/ui-settings.js b/src/core/ui-settings.js
+index f8f8fa2..db367b7 100644
+--- a/src/core/ui-settings.js
++++ b/src/core/ui-settings.js
+@@ -936,6 +936,19 @@ function createSettingsPanel(options) {
+                     </div>
+                 </div>
+ 
++                <div class="form-section">
++                    <div class="section-header"><h4>任务完成后</h4></div>
++                    <div class="section-body">
++                        <label for="personal-task-completion">智学网提示任务量已完成时</label>
++                        <select id="personal-task-completion" style="width:100%;padding:12px;margin:10px 0;">
++                            <option value="manual">手动选择</option>
++                            <option value="next">自动切换下一题</option>
++                            <option value="more">自动继续多阅</option>
++                        </select>
++                        <p style="font-size:12px;color:#667085;line-height:1.6;">继续多阅保持当前题目。切换下一题后暂停自动评分，请确认下一题方案后继续。批阅份数限制仍独立生效。</p>
++                    </div>
++                </div>
++
+                 <div class="form-section">
+                     <div class="section-header"><h4>批阅份数</h4><svg class="section-arrow" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                     <div class="section-body">
+@@ -1413,6 +1426,7 @@ function setupSettingsMenuLayout(panel) {
+     moveSection('ai', '供应商与模型');
+     const apiWarning = configTab.querySelector('#api-key-warning');
+     if (apiWarning) pages.ai.appendChild(apiWarning);
++    moveSection('automation', '任务完成后');
+     moveSection('automation', '批阅份数');
+     moveSection('data', '历史记录');
+     const historyShortcut = document.createElement('div');
+@@ -1571,6 +1585,8 @@ function fillFormFromActivePreset() {
+     // 设置面板可能未创建（如在非阅卷页面），直接返回
+     if (!document.getElementById('ai-grading-settings')) return;
+     const config = PresetManager.getCurrentConfig();
++    const completionSelect = document.getElementById('personal-task-completion');
++    if (completionSelect) completionSelect.value = ['next','more'].includes(config.taskCompletionAction) ? config.taskCompletionAction : 'manual';
+     const currentUrlId = PresetManager.getTaskIdentifier();
+ 
+     // Markdown 预览渲染（兼容旧格式字符串和新格式对象）
+@@ -2622,6 +2638,7 @@ function saveAISettings() {
+         rubric: rubricData,
+         workflowId: workflowId || 'fast',
+         gradingMode,
++        taskCompletionAction: document.getElementById('personal-task-completion')?.value || 'manual',
+         scoring: {
+             roundStep, roundMethod,
+             maxScore: scoringUnits.length > 0
