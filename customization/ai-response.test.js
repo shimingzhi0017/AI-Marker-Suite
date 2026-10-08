@@ -116,6 +116,35 @@ test('明确的服务端错误至多重试一次', async () => {
     assert.equal(requests.length, 2);
 });
 
+test('上游流中断丢弃部分评分，仅非流式重试一次并保留输入', async () => {
+    const interrupted = event({delta:{content:'得分：1'},finish_reason:null}) +
+        'data: ' + JSON.stringify({error:{message:'Upstream response stream was interrupted.'}}) + '\n\ndata: [DONE]\n';
+    const {call, requests} = setup([{body:interrupted}, {body:JSON.stringify({choices:[{message:{content:'得分：6'},finish_reason:'stop'}]})}]);
+    assert.equal(await call(), '得分：6');
+    assert.equal(requests.length,2);
+    assert.equal(requests[0].stream,true);
+    assert.equal(requests[1].stream,false);
+    assert.deepEqual(requests[0].messages,requests[1].messages);
+});
+
+test('连续上游中断暂停，不无限重试', async () => {
+    const body=JSON.stringify({error:{message:'Upstream response stream was interrupted.'}});
+    const {call, requests}=setup([{body},{body}]);
+    await assert.rejects(call(),/Upstream response stream was interrupted/);
+    assert.equal(requests.length,2);
+});
+
+test('请求预算耗尽或用户暂停时不继续中断重试', async () => {
+    const body=JSON.stringify({error:{message:'Upstream response stream was interrupted.'}});
+    const {call,requests}=setup([{body}]);
+    await assert.rejects(call({...config,requestBudget:{remaining:1}}),/interrupted/);
+    assert.equal(requests.length,1);
+    const paused=setup([]);
+    paused.context.window.aiGradingState.abortController.abort();
+    await assert.rejects(paused.call(),/用户主动暂停/);
+    assert.equal(paused.requests.length,0);
+});
+
 test('流式响应缺少结束标记时暂停', async () => {
     const { call } = setup([{ body: event({ delta: { content: '得分：1' }, finish_reason: null }) }]);
     await assert.rejects(call(), /未完整结束/);

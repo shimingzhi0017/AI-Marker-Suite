@@ -1,5 +1,5 @@
 diff --git a/src/core/ai-engine.js b/src/core/ai-engine.js
-index 42ba226..be041ab 100644
+index 42ba226..83ce485 100644
 --- a/src/core/ai-engine.js
 +++ b/src/core/ai-engine.js
 @@ -382,6 +382,20 @@ const WorkflowManager = {
@@ -23,6 +23,15 @@ index 42ba226..be041ab 100644
  function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages, maxTokens) {
      return new Promise((resolve, reject) => {
          const messageContent = [{ type: "text", text: prompt }];
+@@ -394,7 +408,7 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
+         const requestBody = {
+             model: config.model,
+             messages: [{ role: "user", content: messageContent }],
+-            stream: true
++            stream: config._personalNonStreaming !== true
+         };
+         if (maxTokens !== null) requestBody.max_tokens = maxTokens;
+ 
 @@ -403,7 +417,8 @@ function callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages
              requestBody.reasoning_effort = config.reasoningEffort;
          }
@@ -88,7 +97,7 @@ index 42ba226..be041ab 100644
                          if (!fullText && jsonObj.content) {
 -                            fullText = jsonObj.content;
 +                            fullText = extractAIText(jsonObj.content);
-+                        }
+                         }
 +                        if (!fullText && Array.isArray(jsonObj.output)) {
 +                            fullText = jsonObj.output.filter(item => item.type === 'message' && item.role === 'assistant')
 +                                .map(item => extractAIText(item.content)).join('');
@@ -96,7 +105,7 @@ index 42ba226..be041ab 100644
 +                        if (!fullText && typeof jsonObj.output_text === 'string') fullText = jsonObj.output_text;
 +                        if (jsonObj.status && jsonObj.status !== 'completed' && (Array.isArray(jsonObj.output) || typeof jsonObj.output_text === 'string')) {
 +                            streamError = '接口响应未完成 (' + jsonObj.status + '): ' + (jsonObj.incomplete_details?.reason || jsonObj.error?.message || 'unknown');
-                         }
++                        }
 +                        if (!fullText && !streamError) streamError = 'JSON响应没有可用正文；顶层字段：' + Object.keys(jsonObj).join(', ');
                      } catch (e) {}
                  }
@@ -116,3 +125,34 @@ index 42ba226..be041ab 100644
                  resolve(fullText);
              },
              onerror: function() {
+@@ -591,12 +635,13 @@ async function callAI(prompt, base64DataArray, config, onStreamUpdate, extraImag
+         ? null : (Number.isSafeInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 2048);
+     let upgraded = false;
+     let serverRetried = false;
++    let requestConfig = config;
+     for (let attempt = 0; attempt < 3; attempt++) {
+         if (window.aiGradingState.abortController?.signal.aborted) throw new Error('用户主动暂停');
+         if (budget.remaining <= 0) throw new Error('AI请求次数已达到上限');
+         budget.remaining--;
+         try {
+-            const result = await callAIOnce(prompt, base64DataArray, config, onStreamUpdate, extraImages, maxTokens);
++            const result = await callAIOnce(prompt, base64DataArray, requestConfig, onStreamUpdate, extraImages, maxTokens);
+             if (upgraded && config.outputObservation) config.outputObservation.upgraded = true;
+             return result;
+         } catch (error) {
+@@ -606,6 +651,15 @@ async function callAI(prompt, base64DataArray, config, onStreamUpdate, extraImag
+                 if (onStreamUpdate) onStreamUpdate('回答较长，正在继续分析…');
+                 continue;
+             }
++            // 网关明确报告上游流中断时丢弃部分结果，提交前非流式重试一次。
++            if (/^API响应错误:.*upstream response stream was interrupted/i.test(error.message || '')
++                && !serverRetried && attempt < 2 && budget.remaining > 0) {
++                serverRetried = true;
++                requestConfig = { ...config, _personalNonStreaming: true };
++                if (onStreamUpdate) onStreamUpdate('模型响应中断，正在重新获取完整评分…');
++                await new Promise(resolve => setTimeout(resolve, 2000));
++                continue;
++            }
+             if ((error.status === 429 || error.status >= 500) && !serverRetried && attempt < 2) {
+                 serverRetried = true;
+                 await new Promise(resolve => setTimeout(resolve, error.status === 429 ? 5000 : 2000));
